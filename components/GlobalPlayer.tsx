@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { usePlayerStore } from "../store/usePlayerStore";
 import { Play, Pause, SkipBack, SkipForward } from "lucide-react";
 import { Howl } from "howler";
 
 export default function GlobalPlayer() {
+  const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const {
     playlist,
@@ -156,6 +158,7 @@ export default function GlobalPlayer() {
   }, [seekTarget]);
 
   if (!mounted) return null;
+  if (pathname?.startsWith("/artist/dashboard")) return null;
 
   const currentTrack =
     activeTrackIndex !== null && playlist.length > 0

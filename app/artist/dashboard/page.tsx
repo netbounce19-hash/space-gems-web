@@ -31,7 +31,11 @@ export default function ArtistDashboard() {
 
       {/* Main Actions */}
       <div className="grid grid-cols-2 gap-4 p-4 border-b border-black">
-        <button className="flex flex-col items-center justify-center gap-2 p-6 border border-black hover:bg-black hover:text-white transition-colors bg-zinc-50 group">
+        <button className="flex flex-col items-center justify-center gap-2 p-6 border border-black bg-black text-white hover:bg-white hover:text-black transition-colors group">
+          <FolderPlus className="w-8 h-8" />
+          <span className="text-xs font-bold tracking-widest uppercase text-center leading-tight">CREATE<br/>PLAYLIST</span>
+        </button>
+        <button className="flex flex-col items-center justify-center gap-2 p-6 border border-black hover:bg-black hover:text-white transition-colors bg-zinc-50">
           <Plus className="w-8 h-8" />
           <span className="text-xs font-bold tracking-widest uppercase">ADD TRACK</span>
         </button>
@@ -41,11 +45,7 @@ export default function ArtistDashboard() {
         </button>
         <button className="flex flex-col items-center justify-center gap-2 p-6 border border-black hover:bg-black hover:text-white transition-colors bg-zinc-50">
           <Type className="w-8 h-8" />
-          <span className="text-xs font-bold tracking-widest uppercase">ADD TEXT</span>
-        </button>
-        <button className="flex flex-col items-center justify-center gap-2 p-6 border border-black bg-black text-white hover:bg-white hover:text-black transition-colors">
-          <FolderPlus className="w-8 h-8" />
-          <span className="text-xs font-bold tracking-widest uppercase text-center leading-tight">CREATE<br/>PLAYLIST</span>
+          <span className="text-xs font-bold tracking-widest uppercase">ADD BIO</span>
         </button>
       </div>
 
