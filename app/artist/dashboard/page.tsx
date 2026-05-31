@@ -2,10 +2,15 @@
 
 import { useState } from "react";
 import { mockRelease } from "../../../mockData";
+import { useDashboardStore } from "../../../store/useDashboardStore";
 import { Plus, Image as ImageIcon, Type, FolderPlus, Share2, Settings, Lock, Download } from "lucide-react";
+import CreatePlaylistModal from "../../../components/CreatePlaylistModal";
 
 export default function ArtistDashboard() {
+  const { folders, removeFolder } = useDashboardStore();
   const [showShareModal, setShowShareModal] = useState(false);
+  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
+  
   const [shareSettings, setShareSettings] = useState({
     allowDownloads: true,
     requirePassword: true,
@@ -13,7 +18,7 @@ export default function ArtistDashboard() {
   });
 
   return (
-    <div className="flex-1 flex flex-col bg-white w-full max-w-md mx-auto border-x border-black min-h-screen relative">
+    <div className="flex-1 flex flex-col bg-white w-full max-w-md mx-auto border-x border-black min-h-screen relative overflow-x-hidden">
       {/* Header */}
       <header className="border-b border-black py-4 px-4 flex justify-between items-center bg-zinc-100">
         <div className="flex items-center gap-3">
@@ -31,7 +36,10 @@ export default function ArtistDashboard() {
 
       {/* Main Actions */}
       <div className="grid grid-cols-2 gap-4 p-4 border-b border-black">
-        <button className="flex flex-col items-center justify-center gap-2 p-6 border border-black bg-black text-white hover:bg-white hover:text-black transition-colors group">
+        <button 
+          onClick={() => setIsCreatingPlaylist(true)}
+          className="flex flex-col items-center justify-center gap-2 p-6 border border-black bg-black text-white hover:bg-white hover:text-black transition-colors group"
+        >
           <FolderPlus className="w-8 h-8" />
           <span className="text-xs font-bold tracking-widest uppercase text-center leading-tight">CREATE<br/>PLAYLIST</span>
         </button>
@@ -55,27 +63,47 @@ export default function ArtistDashboard() {
           <h2 className="text-sm font-bold tracking-widest uppercase">YOUR PLAYLISTS</h2>
         </div>
         
-        <div className="flex flex-col gap-4">
-          {mockRelease.folders.map((folder) => (
-            <div key={folder.id} className="border border-black p-4 flex flex-col gap-3">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div 
-                    className="w-12 h-12 border border-black bg-zinc-200"
-                    style={{ backgroundImage: `url(${folder.coverImage})`, backgroundSize: 'cover' }}
-                  />
-                  <div>
-                    <h3 className="font-bold tracking-widest uppercase">{folder.name}</h3>
-                    <p className="text-xs font-mono-tech text-zinc-500">{folder.tracks.length} TRACKS</p>
+        {folders.length === 0 ? (
+          <div className="border border-black p-8 flex flex-col items-center justify-center gap-4 bg-zinc-50">
+            <span className="font-mono-tech text-xs text-zinc-500 uppercase">NO PLAYLISTS CREATED</span>
+            <button 
+              onClick={() => setIsCreatingPlaylist(true)}
+              className="text-xs font-bold tracking-widest uppercase border border-black px-4 py-2 hover:bg-black hover:text-white transition-colors bg-white"
+            >
+              [ + CREATE FIRST PLAYLIST ]
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {folders.map((folder) => (
+              <div key={folder.id} className="border border-black p-4 flex flex-col gap-3 group bg-white hover:bg-zinc-50 transition-colors">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-12 h-12 border border-black bg-zinc-200 shrink-0"
+                      style={{ backgroundImage: `url(${folder.coverImage})`, backgroundSize: 'cover' }}
+                    />
+                    <div className="flex flex-col">
+                      <h3 className="font-bold tracking-widest uppercase truncate max-w-[180px]">{folder.name}</h3>
+                      <p className="text-[10px] font-mono-tech text-zinc-500">{folder.tracks.length} TRACKS</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <button className="text-[10px] font-bold tracking-widest uppercase border border-black px-3 py-1 hover:bg-black hover:text-white transition-colors">
+                      [ EDIT ]
+                    </button>
+                    <button 
+                      onClick={() => removeFolder(folder.id)}
+                      className="text-[10px] font-bold tracking-widest uppercase border border-black px-3 py-1 hover:bg-black hover:text-white transition-colors text-red-600 border-red-200 hover:border-red-600 bg-red-50 opacity-0 group-hover:opacity-100"
+                    >
+                      [ DELETE ]
+                    </button>
                   </div>
                 </div>
-                <button className="text-xs font-bold tracking-widest uppercase border border-black px-3 py-1.5 hover:bg-black hover:text-white transition-colors">
-                  EDIT
-                </button>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Share Release Action */}
@@ -89,7 +117,11 @@ export default function ArtistDashboard() {
         </button>
       </div>
 
-      {/* Share Settings Modal */}
+      {/* Modals */}
+      {isCreatingPlaylist && (
+        <CreatePlaylistModal onClose={() => setIsCreatingPlaylist(false)} />
+      )}
+
       {showShareModal && (
         <div className="absolute inset-0 z-50 bg-white border-black flex flex-col animate-in fade-in slide-in-from-bottom-4">
           <header className="border-b border-black py-4 px-4 flex justify-between items-center bg-zinc-100">
@@ -98,7 +130,7 @@ export default function ArtistDashboard() {
               onClick={() => setShowShareModal(false)}
               className="text-xs font-bold tracking-widest uppercase border border-black px-3 py-1.5 hover:bg-black hover:text-white transition-colors"
             >
-              CLOSE
+              [ CLOSE ]
             </button>
           </header>
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { mockRelease } from "../../../mockData";
 import { usePlayerStore } from "../../../store/usePlayerStore";
+import { useDashboardStore } from "../../../store/useDashboardStore";
 import { Track, Folder } from "../../../types";
 import { Search, Play, Pause, Download, Share2, Check, ChevronDown, ArrowUpDown, ArrowLeft } from "lucide-react";
 
@@ -15,6 +16,7 @@ interface SharePageProps {
 export default function SharePage({ params }: SharePageProps) {
   const { slug } = params;
   const release = mockRelease.slug === slug ? mockRelease : mockRelease;
+  const { folders } = useDashboardStore();
 
   // Local state
   const [viewMode, setViewMode] = useState<"grid" | "playlist">("grid");
@@ -34,7 +36,7 @@ export default function SharePage({ params }: SharePageProps) {
     togglePlay,
   } = usePlayerStore();
 
-  const selectedFolder = release.folders.find((f) => f.id === selectedFolderId);
+  const selectedFolder = folders.find((f) => f.id === selectedFolderId);
 
   // Play folder action (enters playlist view and starts playback)
   const handleOpenAndPlayFolder = (folder: Folder, e?: React.MouseEvent) => {
@@ -164,7 +166,7 @@ export default function SharePage({ params }: SharePageProps) {
 
           {/* 3. Sections (Tabs) */}
           <div className="flex items-center gap-4 px-4 py-4 overflow-x-auto border-b border-black whitespace-nowrap scrollbar-hide text-sm font-bold tracking-widest uppercase">
-            {release.folders.map(folder => (
+            {folders.map(folder => (
               <button 
                 key={folder.id} 
                 onClick={() => handleOpenFolder(folder)}
@@ -187,7 +189,7 @@ export default function SharePage({ params }: SharePageProps) {
 
           {/* 5. Square Folders Grid */}
           <div className="grid grid-cols-2 gap-4 p-4">
-            {release.folders.map((folder) => {
+            {folders.map((folder) => {
               const isFolderPlaying = playlist.length > 0 && playlist[0].audioUrl === folder.tracks[0]?.audioUrl && isPlaying;
               
               return (
