@@ -25,8 +25,11 @@ export default function ArtistDashboard() {
     password: "",
   });
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const loadData = async () => {
     setIsLoading(true);
+    setErrorMsg(null);
     try {
       // 1. Get or create default release for MVP
       let { data: rel, error: relError } = await supabase
@@ -36,20 +39,30 @@ export default function ArtistDashboard() {
         .single();
         
       if (!rel && relError?.code === 'PGRST116') {
-        const { data: newRel } = await supabase.from('releases').insert({
+        const { data: newRel, error: insertError } = await supabase.from('releases').insert({
           slug: 'space-gems-vol1',
           artist: 'METAGHETTO',
           title: 'SPACE_GEMS_VOL_1',
           cover_image: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?auto=format&fit=crop&q=80&w=400&h=400'
         }).select().single();
+        if (insertError) {
+          setErrorMsg("Failed to insert release: " + insertError.message);
+          return;
+        }
         rel = newRel;
+      } else if (relError && relError.code !== 'PGRST116') {
+        setErrorMsg("Failed to fetch release: " + relError.message + " (Code: " + relError.code + ")");
+        return;
       }
       setRelease(rel);
 
-      if (!rel) return;
+      if (!rel) {
+        setErrorMsg("Critical: Release is null after fetch/insert.");
+        return;
+      }
 
       // 2. Fetch folders
-      const { data: fData } = await supabase
+      const { data: fData, error: fError } = await supabase
         .from('folders')
         .select(`
           id, name, cover_image,
@@ -59,6 +72,11 @@ export default function ArtistDashboard() {
           )
         `)
         .eq('release_id', rel.id);
+
+      if (fError) {
+        setErrorMsg("Failed to fetch folders: " + fError.message);
+        return;
+      }
 
       // Format folders to match Folder interface
       const formattedFolders: Folder[] = (fData || []).map((f: any) => {
@@ -77,12 +95,17 @@ export default function ArtistDashboard() {
       setFolders(formattedFolders);
 
       // 3. Fetch track pool
-      const { data: tData } = await supabase
+      const { data: tData, error: tError } = await supabase
         .from('tracks')
         .select('*')
         .eq('release_id', rel.id)
         .order('created_at', { ascending: false });
         
+      if (tError) {
+        setErrorMsg("Failed to fetch tracks: " + tError.message);
+        return;
+      }
+
       // map to standard Track type
       const formattedPool: Track[] = (tData || []).map((t: any) => ({
         id: t.id,
@@ -97,8 +120,9 @@ export default function ArtistDashboard() {
       }));
       setTrackPool(formattedPool);
       
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to load data from Supabase", e);
+      setErrorMsg("Unexpected error: " + e.message);
     } finally {
       setIsLoading(false);
     }
@@ -115,6 +139,16 @@ export default function ArtistDashboard() {
 
   if (isLoading) {
     return <div className="flex-1 flex items-center justify-center min-h-screen bg-white font-mono-tech text-xs tracking-widest uppercase">LOADING SUPABASE DATA...</div>;
+  }
+
+  if (errorMsg) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center min-h-screen bg-white font-mono-tech p-8 text-center border-x border-black max-w-md mx-auto">
+        <div className="text-red-600 font-bold text-sm tracking-widest uppercase mb-4">[ DATABASE ERROR ]</div>
+        <div className="text-xs mb-8 p-4 border border-red-600 bg-red-50 text-red-800">{errorMsg}</div>
+        <button onClick={loadData} className="border border-black px-4 py-2 hover:bg-black hover:text-white transition-colors text-xs font-bold tracking-widest uppercase">TRY AGAIN</button>
+      </div>
+    );
   }
 
   return (
