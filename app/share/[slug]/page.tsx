@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { mockRelease } from "../../../mockData";
+import { useState, useEffect } from "react";
 import { usePlayerStore } from "../../../store/usePlayerStore";
-import { useDashboardStore } from "../../../store/useDashboardStore";
 import { Track, Folder } from "../../../types";
 import { Search, Play, Pause, Download, Share2, Check, ChevronDown, ArrowUpDown, ArrowLeft } from "lucide-react";
+import { supabase } from "../../../lib/supabase";
 
 interface SharePageProps {
   params: {
@@ -15,8 +14,10 @@ interface SharePageProps {
 
 export default function SharePage({ params }: SharePageProps) {
   const { slug } = params;
-  const release = mockRelease.slug === slug ? mockRelease : mockRelease;
-  const { folders } = useDashboardStore();
+  
+  const [release, setRelease] = useState<any>(null);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Local state
   const [viewMode, setViewMode] = useState<"grid" | "playlist">("grid");
@@ -36,6 +37,68 @@ export default function SharePage({ params }: SharePageProps) {
     togglePlay,
   } = usePlayerStore();
 
+  useEffect(() => {
+    async function fetchRelease() {
+      setIsLoading(true);
+      try {
+        const { data: rel, error: relError } = await supabase
+          .from('releases')
+          .select('*')
+          .eq('slug', slug)
+          .single();
+
+        if (relError || !rel) {
+          setIsLoading(false);
+          return;
+        }
+
+        setRelease(rel);
+
+        const { data: fData } = await supabase
+          .from('folders')
+          .select(`
+            id, name, cover_image,
+            playlist_tracks (
+              order_index,
+              tracks (*)
+            )
+          `)
+          .eq('release_id', rel.id);
+
+        const formattedFolders: Folder[] = (fData || []).map((f: any) => {
+          const sortedTracks = f.playlist_tracks
+            .sort((a: any, b: any) => a.order_index - b.order_index)
+            .map((pt: any) => ({
+              id: pt.tracks.id,
+              title: pt.tracks.title,
+              audioUrl: pt.tracks.audio_url,
+              bpm: pt.tracks.bpm,
+              bitDepth: pt.tracks.bit_depth || "24-bit",
+              sampleRate: pt.tracks.sample_rate || "48kHz",
+              format: pt.tracks.format,
+              fileSize: pt.tracks.file_size,
+              duration: pt.tracks.duration || 0
+            }));
+            
+          return {
+            id: f.id,
+            name: f.name,
+            coverImage: f.cover_image,
+            tracks: sortedTracks
+          };
+        });
+
+        setFolders(formattedFolders);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchRelease();
+  }, [slug]);
+
   const selectedFolder = folders.find((f) => f.id === selectedFolderId);
 
   // Play folder action (enters playlist view and starts playback)
@@ -44,7 +107,6 @@ export default function SharePage({ params }: SharePageProps) {
     setSelectedFolderId(folder.id);
     setViewMode("playlist");
     
-    // Check if it's already playing this folder
     const isFolderPlaying = playlist.length > 0 && playlist[0].audioUrl === folder.tracks[0]?.audioUrl;
     if (!isFolderPlaying) {
       setPlaylist(folder.tracks, folder.name);
@@ -62,7 +124,6 @@ export default function SharePage({ params }: SharePageProps) {
     setViewMode("grid");
   };
 
-  // Play specific track action
   const handlePlayTrack = (track: Track) => {
     const isCurrentPlaylist = playlist.some((t) => t.id === track.id);
     
@@ -115,15 +176,23 @@ export default function SharePage({ params }: SharePageProps) {
     return playlist[activeTrackIndex].id === track.id;
   };
 
+  if (isLoading) {
+    return <div className="flex-1 flex items-center justify-center min-h-screen bg-white font-mono-tech text-xs tracking-widest uppercase">LOADING RELEASE DATA...</div>;
+  }
+
+  if (!release) {
+    return <div className="flex-1 flex items-center justify-center min-h-screen bg-white font-mono-tech text-xs tracking-widest uppercase">404: RELEASE NOT FOUND</div>;
+  }
+
   return (
     <div className="flex-1 flex flex-col bg-white w-full max-w-md mx-auto border-x border-black min-h-screen pb-24 shadow-sm relative">
       {/* 1. Mobile-First Header */}
       <header className="border-b border-black py-4 px-4 flex justify-between items-center bg-white sticky top-0 z-20">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full border border-black flex items-center justify-center font-bold text-xs shrink-0">
+          <div className="w-8 h-8 rounded-full border border-black flex items-center justify-center font-bold text-xs shrink-0 bg-black text-white">
             SG
           </div>
-          <h1 className="text-lg font-bold tracking-widest truncate max-w-[180px]">
+          <h1 className="text-lg font-bold tracking-widest truncate max-w-[180px] uppercase">
             {release.artist}
           </h1>
         </div>
@@ -151,12 +220,12 @@ export default function SharePage({ params }: SharePageProps) {
           <div 
             className="w-full h-32 border-b border-black bg-zinc-100 flex items-center justify-center relative overflow-hidden"
             style={{ 
-              backgroundImage: `url('${release.coverImage}')`, 
+              backgroundImage: `url('${release.cover_image}')`, 
               backgroundSize: 'cover', 
               backgroundPosition: 'center' 
             }}
           >
-             {!release.coverImage.includes('http') && (
+             {(!release.cover_image || !release.cover_image.includes('http')) && (
                <div className="absolute inset-0 blueprint-grid opacity-30" />
              )}
              <span className="font-mono-tech text-[10px] text-zinc-500 bg-white/80 px-2 py-1 border border-black absolute bottom-2 right-2">
@@ -175,6 +244,9 @@ export default function SharePage({ params }: SharePageProps) {
                 {folder.name}
               </button>
             ))}
+            {folders.length === 0 && (
+              <span className="text-zinc-400 font-mono-tech text-xs">NO FOLDERS FOUND</span>
+            )}
           </div>
 
           {/* 4. Filters & Sort */}
@@ -197,13 +269,12 @@ export default function SharePage({ params }: SharePageProps) {
                   <div 
                     onClick={() => handleOpenFolder(folder)}
                     className="aspect-square border border-black relative cursor-pointer group bg-zinc-100"
-                    style={{ 
+                    style={folder.coverImage ? { 
                       backgroundImage: `url('${folder.coverImage}')`, 
                       backgroundSize: 'cover', 
                       backgroundPosition: 'center' 
-                    }}
+                    } : {}}
                   >
-                    {/* Play Button Overlay */}
                     <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/20 transition-colors">
                       <button 
                         onClick={(e) => handleOpenAndPlayFolder(folder, e)}
@@ -226,7 +297,6 @@ export default function SharePage({ params }: SharePageProps) {
       {/* Playlist View */}
       {viewMode === "playlist" && selectedFolder && (
         <div className="flex flex-col flex-1 animate-in slide-in-from-right-4 duration-200">
-          {/* Back button & Folder Title */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-black bg-zinc-50">
             <button onClick={handleBackToGrid} className="p-1 hover:bg-zinc-200 rounded">
               <ArrowLeft className="w-4 h-4" />
@@ -236,17 +306,15 @@ export default function SharePage({ params }: SharePageProps) {
             </h2>
           </div>
 
-          {/* Large Cover */}
           <div className="w-full aspect-square border-b border-black relative bg-zinc-100">
             <div 
               className="absolute inset-0"
-              style={{ 
+              style={selectedFolder.coverImage ? { 
                 backgroundImage: `url('${selectedFolder.coverImage}')`, 
                 backgroundSize: 'cover', 
                 backgroundPosition: 'center' 
-              }}
+              } : {}}
             />
-            {/* Folder Play Button */}
             <button 
                onClick={() => handleOpenAndPlayFolder(selectedFolder)}
                className="absolute bottom-4 right-4 px-4 py-2 bg-black text-white text-xs font-bold flex items-center gap-2 border border-black hover:bg-white hover:text-black transition-colors"
@@ -255,7 +323,6 @@ export default function SharePage({ params }: SharePageProps) {
             </button>
           </div>
 
-          {/* Tracks List */}
           <div className="flex flex-col">
             {selectedFolder.tracks
               .filter(t => !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -289,7 +356,6 @@ export default function SharePage({ params }: SharePageProps) {
                     )}
                   </div>
 
-                  {/* Actions Row */}
                   <div className="flex items-center gap-2 mt-2">
                     <button
                       onClick={() => handlePlayTrack(track)}
@@ -328,6 +394,12 @@ export default function SharePage({ params }: SharePageProps) {
                 </div>
               );
             })}
+            
+            {selectedFolder.tracks.length === 0 && (
+              <div className="p-8 text-center text-xs font-mono-tech text-zinc-400">
+                NO TRACKS IN THIS FOLDER
+              </div>
+            )}
           </div>
         </div>
       )}

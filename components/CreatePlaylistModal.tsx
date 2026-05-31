@@ -1,31 +1,33 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { useDashboardStore } from "../store/useDashboardStore";
-import { Track, Folder } from "../types";
+import { Track } from "../types";
+import { uploadFileToSupabase } from "../utils/upload";
+import { supabase } from "../lib/supabase";
 
 interface CreatePlaylistModalProps {
+  releaseId: string;
+  trackPool: Track[];
   onClose: () => void;
+  onSuccess: () => void;
 }
 
-export default function CreatePlaylistModal({ onClose }: CreatePlaylistModalProps) {
-  const { trackPool, addFolder } = useDashboardStore();
-  
+export default function CreatePlaylistModal({ releaseId, trackPool, onClose, onSuccess }: CreatePlaylistModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [coverImage, setCoverImage] = useState<string | null>(null);
+  const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
+  const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
   const [selectedTracks, setSelectedTracks] = useState<Track[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Generate a random ID for the new folder
-  const generateId = () => "folder_" + Math.random().toString(36).substr(2, 9);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setCoverImageFile(file);
       const imageUrl = URL.createObjectURL(file);
-      setCoverImage(imageUrl);
+      setCoverImagePreview(imageUrl);
     }
   };
 
@@ -61,21 +63,56 @@ export default function CreatePlaylistModal({ onClose }: CreatePlaylistModalProp
     setSelectedTracks(newTracks);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) {
       alert("TITLE IS REQUIRED");
       return;
     }
     
-    const newFolder: Folder = {
-      id: generateId(),
-      name: title.trim().toUpperCase(),
-      coverImage: coverImage || "https://images.unsplash.com/photo-1557672172-298e090bd0f1?auto=format&fit=crop&q=80&w=400&h=400", // fallback
-      tracks: selectedTracks,
-    };
+    setIsSaving(true);
+    try {
+      let uploadedImageUrl = null;
 
-    addFolder(newFolder);
-    onClose();
+      // 1. Upload Cover Image to Storage
+      if (coverImageFile) {
+        uploadedImageUrl = await uploadFileToSupabase(coverImageFile, `artworks/${releaseId}`);
+      }
+
+      // 2. Create Folder in DB
+      const { data: folderData, error: folderError } = await supabase
+        .from('folders')
+        .insert({
+          release_id: releaseId,
+          name: title.trim().toUpperCase(),
+          cover_image: uploadedImageUrl
+        })
+        .select()
+        .single();
+
+      if (folderError) throw folderError;
+
+      // 3. Link Tracks
+      if (selectedTracks.length > 0) {
+        const playlistTracks = selectedTracks.map((track, index) => ({
+          folder_id: folderData.id,
+          track_id: track.id,
+          order_index: index
+        }));
+
+        const { error: linkError } = await supabase
+          .from('playlist_tracks')
+          .insert(playlistTracks);
+
+        if (linkError) throw linkError;
+      }
+
+      onSuccess();
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to create playlist: " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const unselectedTracks = trackPool.filter(
@@ -89,7 +126,8 @@ export default function CreatePlaylistModal({ onClose }: CreatePlaylistModalProp
         <h2 className="text-lg font-bold tracking-widest uppercase">CREATE PLAYLIST</h2>
         <button 
           onClick={onClose}
-          className="text-xs font-bold tracking-widest uppercase border border-black px-3 py-1.5 hover:bg-black hover:text-white transition-colors"
+          disabled={isSaving}
+          className="text-xs font-bold tracking-widest uppercase border border-black px-3 py-1.5 hover:bg-black hover:text-white transition-colors disabled:opacity-50"
         >
           [ BACK ]
         </button>
@@ -102,10 +140,10 @@ export default function CreatePlaylistModal({ onClose }: CreatePlaylistModalProp
           <label className="text-xs font-bold tracking-widest uppercase">ARTWORK</label>
           <div className="flex items-end gap-4">
             <div 
-              className="w-32 h-32 border border-black bg-zinc-100 flex items-center justify-center relative overflow-hidden"
-              style={coverImage ? { backgroundImage: `url(${coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+              className="w-32 h-32 border border-black bg-zinc-100 flex items-center justify-center relative overflow-hidden shrink-0"
+              style={coverImagePreview ? { backgroundImage: `url(${coverImagePreview})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
             >
-              {!coverImage && <span className="font-mono-tech text-xs text-zinc-400">NO ARTWORK</span>}
+              {!coverImagePreview && <span className="font-mono-tech text-xs text-zinc-400 text-center px-2">NO ARTWORK</span>}
             </div>
             
             <input 
@@ -118,7 +156,8 @@ export default function CreatePlaylistModal({ onClose }: CreatePlaylistModalProp
             
             <button 
               onClick={triggerFileInput}
-              className="text-xs font-bold tracking-widest uppercase border border-black px-4 py-2 hover:bg-black hover:text-white transition-colors h-fit bg-zinc-50"
+              disabled={isSaving}
+              className="text-xs font-bold tracking-widest uppercase border border-black px-4 py-2 hover:bg-black hover:text-white transition-colors h-fit bg-zinc-50 disabled:opacity-50"
             >
               [ + ADD ARTWORK ]
             </button>
@@ -134,7 +173,8 @@ export default function CreatePlaylistModal({ onClose }: CreatePlaylistModalProp
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder="E.G. SUMMER DEMOS 2026"
-              className="w-full border border-black p-3 text-sm font-mono-tech outline-none uppercase bg-zinc-50"
+              disabled={isSaving}
+              className="w-full border border-black p-3 text-sm font-mono-tech outline-none uppercase bg-zinc-50 disabled:opacity-50"
             />
           </div>
           
@@ -145,7 +185,8 @@ export default function CreatePlaylistModal({ onClose }: CreatePlaylistModalProp
               onChange={e => setDescription(e.target.value)}
               placeholder="OPTIONAL DESCRIPTION"
               rows={3}
-              className="w-full border border-black p-3 text-sm font-mono-tech outline-none uppercase bg-zinc-50 resize-none"
+              disabled={isSaving}
+              className="w-full border border-black p-3 text-sm font-mono-tech outline-none uppercase bg-zinc-50 resize-none disabled:opacity-50"
             />
           </div>
         </div>
@@ -167,13 +208,13 @@ export default function CreatePlaylistModal({ onClose }: CreatePlaylistModalProp
                     <span className="font-mono-tech text-[10px] text-zinc-500">{track.bpm} BPM | {track.format}</span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => handleMoveUp(index)} disabled={index === 0} className="w-8 h-8 flex items-center justify-center border border-black hover:bg-black hover:text-white transition-colors disabled:opacity-30 text-xs font-mono-tech">
+                    <button onClick={() => handleMoveUp(index)} disabled={index === 0 || isSaving} className="w-8 h-8 flex items-center justify-center border border-black hover:bg-black hover:text-white transition-colors disabled:opacity-30 text-xs font-mono-tech">
                       [ ↑ ]
                     </button>
-                    <button onClick={() => handleMoveDown(index)} disabled={index === selectedTracks.length - 1} className="w-8 h-8 flex items-center justify-center border border-black hover:bg-black hover:text-white transition-colors disabled:opacity-30 text-xs font-mono-tech">
+                    <button onClick={() => handleMoveDown(index)} disabled={index === selectedTracks.length - 1 || isSaving} className="w-8 h-8 flex items-center justify-center border border-black hover:bg-black hover:text-white transition-colors disabled:opacity-30 text-xs font-mono-tech">
                       [ ↓ ]
                     </button>
-                    <button onClick={() => handleRemoveTrack(track.id)} className="w-8 h-8 flex items-center justify-center border border-black hover:bg-black hover:text-white transition-colors text-xs font-mono-tech text-red-600 hover:text-red-400">
+                    <button onClick={() => handleRemoveTrack(track.id)} disabled={isSaving} className="w-8 h-8 flex items-center justify-center border border-black hover:bg-black hover:text-white transition-colors text-xs font-mono-tech text-red-600 hover:text-red-400 disabled:opacity-30">
                       [ X ]
                     </button>
                   </div>
@@ -195,7 +236,8 @@ export default function CreatePlaylistModal({ onClose }: CreatePlaylistModalProp
                 </div>
                 <button 
                   onClick={() => handleAddTrack(track)}
-                  className="px-3 py-1.5 flex items-center justify-center border border-black hover:bg-black hover:text-white transition-colors text-xs font-mono-tech shrink-0 font-bold bg-white"
+                  disabled={isSaving}
+                  className="px-3 py-1.5 flex items-center justify-center border border-black hover:bg-black hover:text-white transition-colors text-xs font-mono-tech shrink-0 font-bold bg-white disabled:opacity-50"
                 >
                   [ + ADD_TRACK ]
                 </button>
@@ -215,9 +257,10 @@ export default function CreatePlaylistModal({ onClose }: CreatePlaylistModalProp
       <div className="p-4 border-t border-black bg-white sticky bottom-0 z-10 mt-auto">
         <button 
           onClick={handleSave}
-          className="w-full bg-black text-white p-4 font-bold tracking-widest uppercase flex items-center justify-center hover:bg-white hover:text-black border border-black transition-colors"
+          disabled={isSaving}
+          className="w-full bg-black text-white p-4 font-bold tracking-widest uppercase flex items-center justify-center hover:bg-white hover:text-black border border-black transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
         >
-          SAVE PLAYLIST
+          {isSaving ? "SAVING TO DB..." : "SAVE PLAYLIST"}
         </button>
       </div>
 
