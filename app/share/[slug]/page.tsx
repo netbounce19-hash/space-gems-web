@@ -214,6 +214,14 @@ export default function SharePage({ params }: SharePageProps) {
         </div>
       )}
 
+      {release.bio && (
+        <div className="p-4 border-b border-black bg-zinc-100">
+          <p className="text-xs font-mono-tech leading-relaxed text-zinc-800 uppercase">
+            {release.bio}
+          </p>
+        </div>
+      )}
+
       {/* Grid View */}
       {viewMode === "grid" && (
         <div className="flex flex-col flex-1 animate-in fade-in duration-200">

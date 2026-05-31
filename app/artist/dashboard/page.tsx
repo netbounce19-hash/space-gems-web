@@ -7,6 +7,7 @@ import { Plus, Image as ImageIcon, Type, FolderPlus, Share2, Settings, Lock, Dow
 import { supabase } from "../../../lib/supabase";
 import CreatePlaylistModal from "../../../components/CreatePlaylistModal";
 import AddTrackModal from "../../../components/AddTrackModal";
+import AddBioModal from "../../../components/AddBioModal";
 import { Folder, Track } from "../../../types";
 
 export default function ArtistDashboard() {
@@ -17,6 +18,7 @@ export default function ArtistDashboard() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
   const [isAddingTrack, setIsAddingTrack] = useState(false);
+  const [isAddingBio, setIsAddingBio] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
   const [shareSettings, setShareSettings] = useState({
@@ -188,7 +190,10 @@ export default function ArtistDashboard() {
           <ImageIcon className="w-8 h-8" />
           <span className="text-xs font-bold tracking-widest uppercase">ADD IMAGE</span>
         </button>
-        <button className="flex flex-col items-center justify-center gap-2 p-6 border border-black hover:bg-black hover:text-white transition-colors bg-zinc-50 opacity-50">
+        <button 
+          onClick={() => setIsAddingBio(true)}
+          className="flex flex-col items-center justify-center gap-2 p-6 border border-black hover:bg-black hover:text-white transition-colors bg-zinc-50"
+        >
           <Type className="w-8 h-8" />
           <span className="text-xs font-bold tracking-widest uppercase">ADD BIO</span>
         </button>
@@ -274,6 +279,18 @@ export default function ArtistDashboard() {
           onSuccess={() => {
             setIsAddingTrack(false);
             loadData(); // reload track pool
+          }}
+        />
+      )}
+
+      {isAddingBio && release && (
+        <AddBioModal 
+          releaseId={release.id} 
+          initialBio={release.bio}
+          onClose={() => setIsAddingBio(false)} 
+          onSuccess={(newBio) => {
+            setIsAddingBio(false);
+            setRelease({ ...release, bio: newBio });
           }}
         />
       )}

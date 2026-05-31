@@ -23,5 +23,6 @@ export interface Release {
   artist: string;
   title: string;
   coverImage: string;
+  bio?: string;
   folders: Folder[];
 }
