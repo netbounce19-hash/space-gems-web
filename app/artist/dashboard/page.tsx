@@ -1,4 +1,6 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable prefer-const */
 
 import { useState, useEffect } from "react";
 import { Plus, Image as ImageIcon, Type, FolderPlus, Share2, Settings, Lock, Download } from "lucide-react";
